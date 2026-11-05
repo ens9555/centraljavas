@@ -1356,67 +1356,248 @@ const Game = {
     } while (!State.stopAuto && (State.auto > 0 || State.freeSpins > 0));
     State.auto = 0; State.stopAuto = false; UI.update();
   },
-  async spinOnce() {
-    const free = State.freeSpins > 0, f = State.turbo ? CONFIG.speed.turboFactor : 1;
-    if (!free && !Wallet.canBet()) { UI.message('Insufficient balance. Lower your bet or reset your balance.'); return false; }
-    State.busy = true; State.lastWin = State.inFree ? State.freeTotal : 0;   // Free Spin: kotak Menang terus bertambah dari awal sampai akhir Free Spin
-    if (free) State.freeSpins--;            // free spin: bet sama, tanpa potong saldo, pengali & wild terbawa
-    else { Wallet.deductBet(); State.mult = { n: 0 }; State.roundWin = 0; }   // spin utama: pengali mulai x1
-    State.spinning = true; UI.update(); UI.resumeTips(); Sound.play('spin'); Fx.spinWave(1.5);   // teks menang lama langsung diganti tip begitu spin mulai (supaya tidak membocorkan hasil)
 
-    const m0 = State.mult.n;   // meter pengali di awal spin (untuk riwayat)
-    const res = Engine.play(State.bet, State.mult, round2(CONFIG.maxWinX * State.bet - State.roundWin));
-    await Reels.spin(res.initial, State.turbo, () => Sound.play('stop'), () => { Sound.play('anticipate'); });
-    State.spinning = false; UI.setBusy(true);
-    if (res.initial.some(col => col.includes('WILD'))) Sound.play('wild');   // Wild muncul di spin awal
+async spinOnce() {
+  const free = State.freeSpins > 0;
+  const f = State.turbo ? CONFIG.speed.turboFactor : 1;
 
-    let running = 0; const off = State.inFree ? State.freeTotal : 0;   // off = total menang Free Spin sebelumnya (0 di spin biasa)
-    for (const st of res.steps) {
-      running = round2(running + st.ev.total);
-      Sound.play('win'); await Reels.highlight(st.ev.cells, f);   // kartu pemenang menyala kiri -> kanan
-      UI.message(`Win ${UI.fmt(running)}`, false);   // teks tengah = menang spin ini saja
-      State.lastWin = round2(off + running); $('val-win').textContent = UI.fmt(off + running);   // "Win" baru muncul saat pecah
-      Fx.winGlow(Math.min(1, st.ev.total / State.bet / 6));   // panel pesan & kotak Menang menyala, api dari bar bawah ke grid
-      Sound.play('explode'); const n0 = State.mult.n;
-      await Promise.all([Reels.explode(st.ev.cells, f), Fx.wildToMeter(st.wilds, f, n0, st.ev.cells)]);   // Wild pecah, cahayanya masuk ke ring pengali
-      State.mult = st.mult; UI.setMultiplier(State.mult);
-      const sus = st.scatterBefore >= CONFIG.freeSpin.triggerCount - 1 && st.scatterBefore < CONFIG.freeSpin.triggerCount;   // sudah ada 2 Scatter: cari yang ke-3 dari atas
-      await Reels.refill(st.next, f, { suspense: sus, afterSettle: () => Fx.suspenseStart(f), onStart: i => { if (sus) { Reels.susFocus = i; Fire.focus = i; } }, onLand: i => { if (sus) Sound.play('stop'); if (st.next[i].some(c => c.id === 'WILD' && c.from < 0)) Sound.play('wild'); Fx.scatterLand(i, st); } });
-      if (sus) await Fx.suspenseEnd(st, f);
-    }
-    if (res.endWilds.length) {   // Wild yang muncul lagi tapi tidak ikut pecah: tetap terkumpul ke pengali
-      Sound.play('explode');
-      await Promise.all([Reels.explode(res.endWilds, f), Fx.wildToMeter(res.endWilds, f, State.mult.n, res.endWilds)]);
-    }
-    State.mult = res.mult; UI.setMultiplier(State.mult);
-    if (res.total > 0) {
-      if (res.multiplier > 1) { await sleep(250 / f); await Fx.multToWin(res.multiplier, f); await UI.countWin(res.base, res.total, 900 / f, off); }   // pengali tiba -> total naik
-      else UI.message(`Total win ${UI.fmt(res.total)}`, false);
-      Wallet.add(res.total); State.roundWin = round2(State.roundWin + res.total); if (State.inFree) State.freeTotal = round2(State.freeTotal + res.total); State.lastWin = State.inFree ? State.freeTotal : res.total;
-    }
-    UI.update();
-    const rounds = res.steps.length   // tiap ronde cascade: papan sebelum pecah, sel menang, payout, pengali saat itu
-      ? res.steps.map((st, k) => ({ b: GameLog.pack(k ? res.steps[k - 1].next.map(c => c.map(x => x.id)) : res.initial), c: st.ev.cells.map(([r, w]) => r * CONFIG.rows + w), w: st.ev.wins, m: multOf(k ? res.steps[k - 1].mult.n : m0) }))
-      : [{ b: GameLog.pack(res.initial), c: [], w: [], m: multOf(m0) }];
-    GameLog.add({ t: Date.now(), id: '2' + String(Date.now()).slice(-8) + String(Math.floor(Math.random() * 1e10)).padStart(10, '0'), bet: free ? 0 : State.bet, profit: round2(res.total - (free ? 0 : State.bet)), free,
-      bal: State.balance, sz: CONFIG.betSizes[State.sizeIdx], lv: State.level, x: res.multiplier, tot: res.total, r: rounds });   // catat tiap spin ke riwayat
-
-    const tier = [...CONFIG.winTiers].reverse().find(t => res.total >= State.bet * t.min);
-    if (tier) await BigWin.show(res.total, State.bet);
-    if (res.freeSpins > 0) {
-      const retrigger = State.inFree;
-      State.auto = 0;   // Auto tidak berlaku di Free Spin: begitu Free Spin didapat, Auto dimatikan (Free Spin tetap jalan otomatis)
-      if (!State.inFree) { State.inFree = true; State.freeTotal = 0; }   // awal Free Spin: pengali yang sudah terkumpul ikut dibawa (State.mult tidak di-reset)
-      State.freeSpins += res.freeSpins; Sound.play('bonus'); UI.update();
-      await FSPopup.show('start', res.freeSpins, retrigger);
-    }
-    if (res.capped) State.freeSpins = 0;   // batas menang tercapai
-    if (State.inFree && State.freeSpins === 0) {
-      State.inFree = false; UI.update();
-      await FSPopup.show('end', State.freeTotal); State.freeTotal = 0;
-    }
-    State.busy = false; UI.update();
-    return true;
+  if (!API.token) {
+    UI.message('Silakan login terlebih dahulu.');
+    return false;
   }
+
+  if (!free && !Wallet.canBet()) {
+    UI.message('Saldo tidak mencukupi.');
+    return false;
+  }
+
+  State.busy = true;
+  State.spinning = true;
+  State.lastWin = State.inFree ? State.freeTotal : 0;
+  UI.update();
+  UI.resumeTips();
+
+  let data;
+
+  try {
+    data = await API.spin(State.bet);
+  } catch (error) {
+    State.busy = false;
+    State.spinning = false;
+
+    if (/401|sesi|token/i.test(error.message)) {
+      API.token = '';
+      localStorage.removeItem('centralJavaToken');
+      UI.message('Sesi berakhir. Silakan login kembali.');
+    } else {
+      UI.message(error.message || 'Spin gagal diproses.');
+    }
+
+    UI.update();
+    return false;
+  }
+
+  if (!data || !data.result || !data.wallet || !data.round) {
+    State.busy = false;
+    State.spinning = false;
+    UI.update();
+    UI.message('Respons backend tidak lengkap.');
+    return false;
+  }
+
+  const res = data.result;
+  const serverFree = !!data.isFreeSpin;
+  const oldFreeSpins = State.freeSpins;
+  const remaining = Number(data.round.freeSpinsRemaining || 0);
+
+  const awarded = Math.max(
+    0,
+    remaining - (serverFree ? Math.max(0, oldFreeSpins - 1) : 0)
+  );
+
+  res.freeSpins = awarded;
+
+  if (!serverFree) {
+    State.mult = { n: 0 };
+    State.roundWin = 0;
+  }
+
+  State.spinning = true;
+  Sound.play('spin');
+  Fx.spinWave(1.5);
+
+  const m0 = State.mult.n;
+
+  await Reels.spin(
+    res.initial,
+    State.turbo,
+    () => Sound.play('stop'),
+    () => Sound.play('anticipate')
+  );
+
+  State.spinning = false;
+  UI.setBusy(true);
+
+  if (res.initial.some(col => col.includes('WILD'))) {
+    Sound.play('wild');
+  }
+
+  let running = 0;
+  const off = serverFree ? State.freeTotal : 0;
+
+  for (const st of res.steps) {
+    running = round2(running + st.ev.total);
+
+    Sound.play('win');
+    await Reels.highlight(st.ev.cells, f);
+
+    UI.message(`Win ${UI.fmt(running)}`, false);
+    State.lastWin = round2(off + running);
+    $('val-win').textContent = UI.fmt(off + running);
+
+    Fx.winGlow(Math.min(1, st.ev.total / State.bet / 6));
+
+    Sound.play('explode');
+    const n0 = State.mult.n;
+
+    await Promise.all([
+      Reels.explode(st.ev.cells, f),
+      Fx.wildToMeter(st.wilds, f, n0, st.ev.cells)
+    ]);
+
+    State.mult = st.mult;
+    UI.setMultiplier(State.mult);
+
+    const sus =
+      st.scatterBefore >= CONFIG.freeSpin.triggerCount - 1 &&
+      st.scatterBefore < CONFIG.freeSpin.triggerCount;
+
+    await Reels.refill(st.next, f, {
+      suspense: sus,
+      afterSettle: () => Fx.suspenseStart(f),
+      onStart: i => {
+        if (sus) {
+          Reels.susFocus = i;
+          Fire.focus = i;
+        }
+      },
+      onLand: i => {
+        if (sus) Sound.play('stop');
+
+        if (st.next[i].some(c => c.id === 'WILD' && c.from < 0)) {
+          Sound.play('wild');
+        }
+
+        Fx.scatterLand(i, st);
+      }
+    });
+
+    if (sus) await Fx.suspenseEnd(st, f);
+  }
+
+  if (res.endWilds.length) {
+    Sound.play('explode');
+
+    await Promise.all([
+      Reels.explode(res.endWilds, f),
+      Fx.wildToMeter(res.endWilds, f, State.mult.n, res.endWilds)
+    ]);
+  }
+
+  State.mult = res.mult;
+  UI.setMultiplier(State.mult);
+
+  if (res.total > 0) {
+    if (res.multiplier > 1) {
+      await sleep(250 / f);
+      await Fx.multToWin(res.multiplier, f);
+      await UI.countWin(res.base, res.total, 900 / f, off);
+    } else {
+      UI.message(`Total win ${UI.fmt(res.total)}`, false);
+    }
+  }
+
+  // Saldo dan total ronde selalu mengikuti backend.
+  State.balance = Number(data.wallet.balance);
+  State.roundWin = Number(data.round.roundWin);
+
+  if (serverFree) {
+    State.freeTotal = round2(State.freeTotal + res.total);
+  }
+
+  State.freeSpins = remaining;
+
+  const rounds = res.steps.length
+    ? res.steps.map((st, k) => ({
+        b: GameLog.pack(
+          k
+            ? res.steps[k - 1].next.map(c => c.map(x => x.id))
+            : res.initial
+        ),
+        c: st.ev.cells.map(([r, w]) => r * CONFIG.rows + w),
+        w: st.ev.wins,
+        m: multOf(k ? res.steps[k - 1].mult.n : m0)
+      }))
+    : [{
+        b: GameLog.pack(res.initial),
+        c: [],
+        w: [],
+        m: multOf(m0)
+      }];
+
+  GameLog.add({
+    t: Date.now(),
+    id: data.roundId || data.requestId || String(Date.now()),
+    bet: serverFree ? 0 : State.bet,
+    profit: round2(res.total - (serverFree ? 0 : State.bet)),
+    free: serverFree,
+    bal: State.balance,
+    sz: CONFIG.betSizes[State.sizeIdx],
+    lv: State.level,
+    x: res.multiplier,
+    tot: res.total,
+    r: rounds
+  });
+
+  const tier = [...CONFIG.winTiers]
+    .reverse()
+    .find(t => res.total >= State.bet * t.min);
+
+  if (tier) await BigWin.show(res.total, State.bet);
+
+  if (awarded > 0) {
+    const retrigger = serverFree;
+
+    State.auto = 0;
+
+    if (!State.inFree) {
+      State.inFree = true;
+      State.freeTotal = 0;
+    }
+
+    Sound.play('bonus');
+    UI.update();
+
+    await FSPopup.show('start', awarded, retrigger);
+  }
+
+  if (res.capped) {
+    State.freeSpins = 0;
+  }
+
+  if (State.inFree && State.freeSpins === 0) {
+    State.inFree = false;
+    UI.update();
+
+    await FSPopup.show('end', State.freeTotal);
+    State.freeTotal = 0;
+  }
+
+  State.lastWin = res.total;
+  State.busy = false;
+  UI.update();
+
+  return true;
+}
 };
 window.addEventListener('DOMContentLoaded', () => Game.init());
