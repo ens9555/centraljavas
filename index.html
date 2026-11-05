@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14112a">
+<title>Central Java</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game">
+<div id="game-body">
+
+  <!-- Area atas: ornamen pojok + wayang + bingkai pengali -->
+  <div id="top-band">
+    <!-- Langit di belakang pengali & wayang: awan selalu ada, petir (canvas) hanya muncul saat Free Spin -->
+    <div id="sky" aria-hidden="true">
+      <div class="cloud-layer far"><div class="cloud-set"><img class="cloud" style="left:4cqw;width:44cqw" src="assets/deco/awan.webp" alt=""><img class="cloud f" style="left:54cqw;width:42cqw" src="assets/deco/awan.webp" alt=""></div><div class="cloud-set"><img class="cloud" style="left:4cqw;width:44cqw" src="assets/deco/awan.webp" alt=""><img class="cloud f" style="left:54cqw;width:42cqw" src="assets/deco/awan.webp" alt=""></div></div>
+      <div class="cloud-layer mid"><div class="cloud-set"><img class="cloud f" style="left:2cqw;width:46cqw" src="assets/deco/awan.webp" alt=""><img class="cloud" style="left:52cqw;width:46cqw" src="assets/deco/awan.webp" alt=""></div><div class="cloud-set"><img class="cloud f" style="left:2cqw;width:46cqw" src="assets/deco/awan.webp" alt=""><img class="cloud" style="left:52cqw;width:46cqw" src="assets/deco/awan.webp" alt=""></div></div>
+      <div class="cloud-layer near"><div class="cloud-set"><img class="cloud" style="left:0cqw;width:54cqw" src="assets/deco/awan.webp" alt=""><img class="cloud f" style="left:50cqw;width:50cqw" src="assets/deco/awan.webp" alt=""></div><div class="cloud-set"><img class="cloud" style="left:0cqw;width:54cqw" src="assets/deco/awan.webp" alt=""><img class="cloud f" style="left:50cqw;width:50cqw" src="assets/deco/awan.webp" alt=""></div></div>
+      <canvas id="storm-canvas"></canvas>
+    </div>
+    <img class="deco corner corner-l" src="assets/deco/corner_l.webp" alt="">
+    <img class="deco corner corner-r" src="assets/deco/corner_r.webp" alt="">
+    <div id="multiplier-panel">
+      <img class="mult-frame" src="assets/deco/mult_frame.webp" alt="">
+      <div id="mult-ring"><span id="val-mult">x1</span></div>
+      <span id="mult-next" class="badge" title="Next multiplier">x3</span>
+    </div>
+    <img id="wayang-l" class="deco wayang wayang-l" src="assets/deco/wayang_l.webp" alt="">
+    <img id="wayang-r" class="deco wayang wayang-r" src="assets/deco/wayang_r.webp" alt="">
+  </div>
+
+  <!-- Grid slot dengan pembatas atas & bawah -->
+  <div id="reel-wrap">
+    <img class="bar bar-top" src="assets/deco/bar_top.webp" alt="">
+    <main id="reel-area"><canvas id="reel-canvas"></canvas><canvas id="fire-canvas"></canvas></main>
+    <img class="bar bar-bottom" src="assets/deco/bar_bottom.webp" alt="">
+  </div>
+
+  <div id="message-bar"><img class="panel-img" src="assets/ui/panel.webp" alt=""><span id="message-text"></span></div>
+
+  <section id="info-panels">
+    <div id="panel-balance" class="info-box"><span class="label">Balance</span><span id="val-balance" class="value">0</span></div>
+    <div id="panel-bet" class="info-box"><span class="label">Bet</span><span id="val-bet" class="value">0</span></div>
+    <div id="panel-win" class="info-box"><span class="label">Win</span><span id="val-win" class="value">0</span></div>
+  </section>
+
+  <section id="controls">
+    <button id="btn-turbo" class="img-btn" aria-label="Turbo">
+      <img class="off n" src="assets/ui/turbo_off.webp" alt=""><img class="off p" src="assets/ui/turbo_off_pressed.webp" alt="">
+      <img class="on n" src="assets/ui/turbo_on.webp" alt=""><img class="on p" src="assets/ui/turbo_on_glow.webp" alt="">
+    </button>
+    <button id="btn-bet-down" class="img-btn" aria-label="Decrease bet">
+      <img class="n" src="assets/ui/minus.webp" alt=""><img class="p" src="assets/ui/minus_pressed.webp" alt="">
+    </button>
+    <button id="btn-spin" aria-label="Spin">
+      <img class="spin-base" src="assets/deco/medallion_base.webp" alt="">
+      <img class="spin-frame" src="assets/ui/auto_frame.webp" alt="">
+      <img id="spin-icon" class="spin-icon" src="assets/deco/spin_icon.webp" alt="">
+      <div id="spin-num" aria-hidden="true"></div>
+    </button>
+    <button id="btn-bet-up" class="img-btn" aria-label="Increase bet">
+      <img class="n" src="assets/ui/plus.webp" alt=""><img class="p" src="assets/ui/plus_pressed.webp" alt="">
+    </button>
+    <button id="btn-auto" class="img-btn" aria-label="Auto">
+      <img class="n" src="assets/ui/auto.webp" alt=""><img class="p" src="assets/ui/auto_pressed.webp" alt="">
+    </button>
+
+    <!-- Hamburger + bar menu (Quit / Sound / Paytable / Rules / History / Close) yang menggantikan tombol kontrol -->
+    <button id="btn-menu" aria-label="Menu"><i></i><i></i><i></i></button>
+    <div id="menu-bar" class="hidden">
+      <button class="mb" id="mb-quit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.6A8.5 8.5 0 1 1 14.5 19.4"/><path d="M3 12h11M7 8l-4 4 4 4"/></svg><span>Quit</span></button>
+      <button class="mb" id="mb-sound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z" fill="currentColor"/><path class="on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a8 8 0 0 1 0 11"/><path class="off" d="M3.5 3.5l17 17"/></svg><span>Sound</span></button>
+      <button class="mb" id="mb-paytable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M6.5 14.5l3.5-5 3 3.5 2.5-4 2 2.5"/></svg><span>Paytable</span></button>
+      <button class="mb" id="mb-rules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Rules</span></button>
+      <button class="mb" id="mb-history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l7.4 4.2v10L12 21.2 4.6 17V7z"/><text x="12" y="14.4" text-anchor="middle" font-size="6.6" font-weight="800" fill="currentColor" stroke="none" font-family="Arial,sans-serif">WIN</text></svg><span>History</span></button>
+      <button class="mb" id="mb-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.8"/><path d="M8.8 8.8l6.4 6.4M15.2 8.8l-6.4 6.4"/></svg><span>Close</span></button>
+    </div>
+  </section>
+
+  <div id="suspense-vignette"></div>
+
+  <!-- Notifikasi menang besar (Big / Mega / Super Mega) -->
+  <div id="bigwin" class="hidden" data-theme="big">
+    <div class="bw-bg" data-t="big"></div><div class="bw-bg" data-t="mega"></div><div class="bw-bg" data-t="super"></div>
+    <div class="bw-rays"></div><div class="bw-rays r2"></div><div class="bw-glow"></div><div class="bw-dust"></div><div class="bw-dust d2"></div>
+    <img class="bw-star s1" src="assets/effects/fs_sparkle.webp" alt=""><img class="bw-star s2" src="assets/effects/fs_sparkle.webp" alt=""><img class="bw-star s3" src="assets/effects/fs_sparkle.webp" alt="">
+    <canvas id="bw-canvas"></canvas>
+    <div id="bw-gems"></div>
+    <div id="bw-title"></div>
+    <div id="bw-amountbox"><div id="bw-amount"></div></div>
+    <div id="bw-flash"></div>
+    <small id="bw-tap">Tap to continue</small>
+  </div>
+
+  <!-- Notifikasi Free Spin: emblem + cahaya di belakangnya (mode "start" = dapat Free Spin, "end" = total menang Free Spin) -->
+  <div id="freespin" class="hidden">
+    <div class="fs-stage">
+      <div class="fs-glow"></div><div class="fs-rays"></div><div class="fs-rays r2"></div><div class="fs-dust"></div><div class="fs-dust d2"></div>
+      <img class="fs-star s1" src="assets/effects/fs_sparkle.webp" alt=""><img class="fs-star s2" src="assets/effects/fs_sparkle.webp" alt=""><img class="fs-star s3" src="assets/effects/fs_sparkle.webp" alt=""><img class="fs-star s4" src="assets/effects/fs_sparkle.webp" alt="">
+      <div class="fs-pop"><div class="fs-float"><div class="fs-emblem">
+        <img class="fs-img" src="assets/ui/freespin_emblem.webp" alt="">
+        <div class="fs-shine"></div>
+        <div class="fs-panel"><span id="fs-cap-top" class="fs-cap"></span><div id="fs-num"></div><span id="fs-cap-bottom" class="fs-cap"></span></div>
+        <small id="fs-tap">Tap to continue</small>
+      </div></div></div>
+    </div>
+  </div>
+
+  <div id="popup-layer" class="hidden">
+    <div id="popup-win" class="popup hidden"><div class="popup-box"><h2 id="popup-win-title"></h2><p id="popup-win-amount"></p><small>Tap to close</small></div></div>
+    <div id="popup-bonus" class="popup hidden"><div class="popup-box"><h2>Bonus</h2><p id="popup-bonus-text"></p><small>Tap to continue</small></div></div>
+    <div id="popup-paytable" class="popup hidden"><div class="popup-box"><h2>Paytable</h2><div id="paytable-body"></div><div id="paylines-info"></div><button id="btn-close-paytable" class="btn btn-ghost">Close</button></div></div>
+    <div id="popup-settings" class="popup hidden"><div class="popup-box"><h2>Menu</h2>
+      <button id="btn-info" class="btn btn-ghost">Paytable &amp; info</button>
+      <button id="btn-settings-sound" class="btn btn-ghost">Sound: ON</button>
+      <button id="btn-settings-music" class="btn btn-ghost">Music: ON</button>
+      <button id="btn-reset" class="btn btn-ghost">Reset balance</button>
+      <button id="btn-close-settings" class="btn btn-ghost">Close</button></div></div>
+  </div>
+  <!-- Panel Auto Spin: muncul dari bawah di atas area tombol, info Balance/Bet/Win tetap terlihat -->
+  <div id="auto-sheet" class="hidden">
+    <div id="auto-backdrop"></div>
+    <div id="auto-panel"><div id="auto-inner">
+      <div class="as-head"><h2>Auto Spin</h2><button id="btn-close-auto" class="as-close" aria-label="Close">&times;</button></div>
+      <small>Number of Auto Spins</small>
+      <div id="auto-options"></div>
+      <button id="btn-start-auto" class="as-start" disabled>Start Auto Spin</button>
+    </div></div>
+  </div>
+  <!-- Panel Bet Options (bottom sheet): roda Bet Size & Bet Level, Max Bet / Confirm -->
+  <div id="bet-sheet" class="hidden">
+    <div id="bet-backdrop"></div>
+    <div id="bet-panel">
+      <div class="as-head"><h2>Bet Options</h2><button id="btn-close-bet" class="as-close" aria-label="Close">&times;</button></div>
+      <div class="bt-cols"><span>Bet Size</span><span>Bet Level</span><span>Base Bet</span><span class="gold">Bet Amount</span></div>
+      <div id="bt-wheel">
+        <div id="bt-band"><span style="left:25%">x</span><span class="w" style="left:62.5%" id="bt-base">20</span><span style="left:50%">x</span><span style="left:75%">=</span></div>
+        <div id="bt-size" class="bt-scroll"></div>
+        <div id="bt-level" class="bt-scroll"></div>
+      </div>
+      <div class="bt-actions"><button id="btn-max-bet" class="bt-max">Max Bet</button><button id="btn-confirm-bet" class="as-start">Confirm</button></div>
+      <div class="bt-info"><div><small>Balance</small><b id="bt-bal"></b></div><div><small>Bet</small><b id="bt-bet"></b></div><div><small>Win</small><b id="bt-win"></b></div></div>
+    </div>
+  </div>
+  <!-- Riwayat game (tekan kotak Win) -->
+  <div id="history-sheet" class="hidden">
+    <div class="hs-head">
+      <svg class="hs-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      <div class="hs-title"><b>Game History</b><small>Today</small></div>
+      <button id="btn-close-history" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l16 16M20 4L4 20"/></svg></button>
+    </div>
+    <div class="hs-grid hs-cols"><span>Time<small id="hs-tz"></small></span><span>Transaction</span><span>Bet</span><span>Profit</span></div>
+    <div id="hs-list"></div>
+    <div class="hs-grid hs-foot"><span class="hs-sum"><b>Today</b><b id="hs-count">0 Records</b></span><span id="hs-bet">0.00</span><span id="hs-profit">0.00</span></div>
+    <!-- Detail 1 spin: papan tiap ronde + payout -->
+    <div id="hd" class="hidden">
+      <div class="hd-head"><button id="btn-hd-back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5l-7 7 7 7"/></svg></button>
+        <div class="hs-title"><b id="hd-title">Normal Spin</b><small id="hd-date"></small></div></div>
+      <div class="hd-strip"><div><b id="hd-id"></b><small>Transaction</small></div><div><b id="hd-bet"></b><small>Bet</small></div><div><b id="hd-profit"></b><small>Profit</small></div><div><b id="hd-bal"></b><small>Balance</small></div></div>
+      <div id="hd-meta"></div>
+      <div id="hd-board"><div id="hd-mult">x1</div><canvas id="hd-canvas"></canvas>
+        <button id="hd-prev" class="hd-nav l" aria-label="Previous round">&#8249;</button><button id="hd-next" class="hd-nav r" aria-label="Next round">&#8250;</button></div>
+      <div class="hd-paytitle"><span>Payout</span></div>
+      <div id="hd-pay"></div>
+    </div>
+  </div>
+  <!-- Panel Balance (tekan kotak Balance) -->
+  <div id="bal-sheet" class="hidden">
+    <div id="bal-backdrop"></div>
+    <div id="bal-panel">
+      <div class="as-head"><h2>Balance</h2><button id="btn-close-bal" class="as-close" aria-label="Close">&times;</button></div>
+      <div class="bl-card">
+        <svg class="bl-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19a1 1 0 0 1 1 1v2H6.5a.5.5 0 0 0 0 1H20a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 18.5v-13Zm12.5 8.2a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z"/></svg>
+        <span class="bl-name">Cash Wallet</span><b id="bl-amount">0.00</b>
+      </div>
+    </div>
+  </div>
+  <!-- Panel Paytable / Game Rules -->
+  <div id="info-sheet" class="hidden">
+    <div class="hs-head"><div class="hs-title"><b id="ip-title">Paytable</b></div>
+      <button id="btn-close-info" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l16 16M20 4L4 20"/></svg></button></div>
+    <div id="ip-body"></div>
+  </div>
+  <div id="fx-layer"></div>
+</div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
