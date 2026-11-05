@@ -1243,6 +1243,56 @@ const Music = {
 
 /* ---------- GAME ---------- */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const API = {
+  base: 'http://localhost:3000/api',
+  token: localStorage.getItem('centralJavaToken') || '',
+
+  async request(path, options = {}) {
+    const response = await fetch(this.base + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+        ...(options.headers || {})
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || 'Koneksi backend gagal.');
+    }
+
+    return data;
+  },
+
+  async login(username, password) {
+    const data = await this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+
+    this.token = data.session.sessionToken;
+    localStorage.setItem('centralJavaToken', this.token);
+    return data;
+  },
+
+  async getWallet() {
+    return await this.request('/wallet');
+  },
+
+  async spin(bet) {
+    return await this.request('/spin', {
+      method: 'POST',
+      body: JSON.stringify({
+        requestId: crypto.randomUUID(),
+        bet: String(bet)
+      })
+    });
+  }
+};
+
 const Game = {
   async init() {
     UI.message('Loading assets...'); document.title = CONFIG.title;
